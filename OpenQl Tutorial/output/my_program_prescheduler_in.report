@@ -1,0 +1,15 @@
+For block with name "my_kernel":
+    Duration (assuming no control-flow): 17
+    Number of quantum gates: 15
+    Number of multi-qubit gates: 5
+    Number of classical operations: 0
+    Number of qubits used: 5
+    Qubit cycles use (assuming no control-flow): {0: 12, 1: 8, 2: 5, 3: 7, 4: 8}
+
+Global statistics:
+Total duration (assuming no control-flow): 17
+Total number of quantum gates: 15
+Total number of multi-qubit gates: 5
+Total number of classical operations: 0
+Number of qubits used: 5
+Qubit cycles use (assuming no control-flow): {0: 12, 1: 8, 2: 5, 3: 7, 4: 8}

@@ -1,0 +1,26 @@
+For block with name "my_kernel":
+    Duration (assuming no control-flow): 42
+    Number of quantum gates: 33
+    Number of multi-qubit gates: 11
+    Number of classical operations: 0
+    Number of qubits used: 5
+    Qubit cycles use (assuming no control-flow): {0: 14, 1: 17, 2: 42, 3: 7, 4: 8}
+    ----- swaps added: 2
+    ----- of which moves added: 0
+    ----- virt2real map before mapper:[0, 1, 2, 3, 4]
+    ----- virt2real map after initial placement:[0, 1, 2, 3, 4]
+    ----- virt2real map after mapper:[1, 2, 0, 3, 4]
+    ----- realqubit states before mapper:[initialized, initialized, initialized, initialized, initialized]
+    ----- realqubit states after mapper:[live, live, live, live, live]
+    ----- time taken: 0.0020864
+
+Global statistics:
+Total duration (assuming no control-flow): 42
+Total number of quantum gates: 33
+Total number of multi-qubit gates: 11
+Total number of classical operations: 0
+Number of qubits used: 5
+Qubit cycles use (assuming no control-flow): {0: 14, 1: 17, 2: 42, 3: 7, 4: 8}
+Total no. of swaps: 2
+Total no. of moves of swaps: 0
+Total time taken: 0.0020864
