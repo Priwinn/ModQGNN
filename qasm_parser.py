@@ -10,7 +10,7 @@ def find_qbits(line):
     return qbits
 
 
-def parse(path, self_loops=False, skip_repeat=False):
+def parse(path, self_loops=False, skip_repeat=False, empty_slices=False):
     slices = []
     with open(path) as f:
         cycle = 0
@@ -63,7 +63,10 @@ def parse(path, self_loops=False, skip_repeat=False):
                     row_idx.append(qbits[0])
                     data.append(1)
                     data.append(1)
-            slices.append(sparse.COO([row_idx, col_idx], data, shape=[n_qbits, n_qbits]))
+            if data:
+                slices.append(sparse.COO([row_idx, col_idx], data, shape=[n_qbits, n_qbits]))
+            else:
+                continue
             cycle += 1
     return sparse.stack(slices)
 

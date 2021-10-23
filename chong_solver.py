@@ -220,9 +220,9 @@ def sequence_solver(file, N=10, path='random_circuits', out_path='random_circuit
 
 
 if __name__ == '__main__':
-    path = 'random_circuits'
+    path = 'random_circuits_remove_empty'
     N = 10
-    out_path = 'random_circuits'
+    out_path = 'random_circuits_remove_empty'
     for file in os.listdir(path):
-        sequence_solver(file)
+        sequence_solver(file,path=path,out_path=out_path)
 

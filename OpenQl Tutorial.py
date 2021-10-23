@@ -88,7 +88,7 @@ program.get_compiler().insert_pass_before(
     'mapper',
     'ana.visualize.Mapping',
     'before_mapping', {
-        'config': os.path.join(curdir, "visualizer_config_example1.json"),
+        'config_quantum': os.path.join(curdir, "visualizer_config_example1.json"),
         'output_prefix': output_dir + '\%N_before',
         'interactive': 'yes'
     }
@@ -98,7 +98,7 @@ program.get_compiler().insert_pass_after(
     'mapper',
     'ana.visualize.Mapping',
     'after_mapping', {
-        'config': os.path.join(curdir, "visualizer_config_example1.json"),
+        'config_quantum': os.path.join(curdir, "visualizer_config_example1.json"),
         'output_prefix': output_dir + '\%N_after',
         'interactive': 'yes'
     }
