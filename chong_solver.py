@@ -10,20 +10,62 @@ random.seed(1)
 warnings.filterwarnings("ignore", message="invalid value encountered in multiply")
 
 
-def validate_partition(G, P):
+def validate_partition(G, P,inf=2**16):
     if isinstance(P, list):
         P = np.array(P)
     if isinstance(G, nx.Graph):
         for (u, v) in G.edges:
             if P[u] != P[v]:
                 print(f'Nodes {u},{v} are not in the same partition')
-                return np.inf
+                return inf
         return 0
     else:
         edges = np.where(G != 0)
         if any(P[edges[0]] != P[edges[1]]):
-            return np.inf
+            return inf
         return 0
+
+
+def naive_solver(G,N):
+    n_nodes = G.shape[-1]
+    n_per_part = int(n_nodes / N)
+    data = G.coords[-2]+G.coords[-1]
+    edges = G.coords
+    p=0
+    n=0
+    part=np.full(n_nodes,-1)
+    while data.shape[0]!=0:
+        curr_min=np.min(data)
+        argmins= np.where(data==curr_min)[0]
+        candidates= edges[:,argmins]
+        winner_index = np.unravel_index(np.argmin(candidates, axis=None), candidates.shape)[0]
+        winner = candidates[:,winner_index]
+        #Set partitions to the winners
+        part[winner[0]]=p
+        part[winner[1]]=p
+        #Add to the count of qbits in current partition
+        n+=2
+        #Reset counters if full
+        if n==n_per_part:
+            p+=1
+            n=0
+        #Remove winners
+        reciprocal_index = np.where((candidates==([winner[1]],[winner[0]])).all(axis=0))[0][0]
+        data =np.delete(data,np.array([argmins[winner_index],argmins[reciprocal_index]]),axis=0)
+        edges =np.delete(edges,[argmins[winner_index],argmins[reciprocal_index]],axis=1)
+    unassigned=np.where(part==-1)[0]
+    for i in unassigned:
+        part[i]=p
+        #Add to the count of qbits in current partition
+        n+=1
+        #Reset counters if full
+        if n==n_per_part:
+            p+=1
+            n=0
+    return part
+
+
+
 
 
 def roee(A, G, N, part=None):
@@ -110,7 +152,7 @@ def roee(A, G, N, part=None):
     return part
 
 
-def roee_vect(A, G, N, part=None):
+def roee_vect(A, G, N, part=None,return_n_it=False):
     '''
     :param A: Weight matrix
     :param G: Interaction graph
@@ -126,8 +168,11 @@ def roee_vect(A, G, N, part=None):
         part = [i for i in range(N) for _ in range(n_per_part)]
         random.shuffle(part)
     g_max = 1
+    it=0
     # Step 7
     while g_max > 0:
+        it+=1
+        validated=False
         if validate_partition(G, part) == 0:
             break
         # Step 1
@@ -141,6 +186,7 @@ def roee_vect(A, G, N, part=None):
         # Step 4
         while C.shape[0] > 1:
             # Step 2
+
             g.append([-np.inf, None, None])
 
             g_aux = D[np.meshgrid(C, part[C])] + D[np.meshgrid(C,part[C])].T - 2 * A[np.meshgrid(C, C)]
@@ -172,25 +218,31 @@ def roee_vect(A, G, N, part=None):
         g_max = g_max[m]
         for i in g[:m + 1]:
             part[i[1]], part[i[2]] = part[i[2]], part[i[1]]
+        #     #Corrected relaxed condition
+        #     if validate_partition(G, part) == 0:
+        #         validated=True
+        #         break
+        if validated:
+            break
     if validate_partition(G, part) != 0:
         print('Valid partition not found')
-    return part
+    if not return_n_it:
+        return part
+    else:
+        return part,it
 
 
 def lookahead(Gs, func='exp', sigma=1, inf=2 ** 16):
     W = inf * Gs[0]
     W.fill_value = np.float64(0.0)
-    n = 1
     if func == 'exp':
         pass
     else:
         raise NotImplementedError('For the time being only exp is implemented')
-    for G in Gs:
-        aux = G * 2 ** (-n / sigma)
-        aux.fill_value = np.float64(0.0)
-        W = W + aux
-        n+=1
-    return W
+    L=np.arange(1,Gs.shape[0])[:,np.newaxis,np.newaxis]
+    L=Gs[1:]*2**(-L/sigma)
+    L.fill_value = np.single(0.0)
+    return np.sum(L,axis=0)+W
 
 
 def sequence_solver(file, N=10, path='random_circuits', out_path='random_circuits'):
@@ -198,7 +250,7 @@ def sequence_solver(file, N=10, path='random_circuits', out_path='random_circuit
         Gs = sparse.load_npz(os.path.join(path, file))
     else:
         return
-    save_path = os.path.join(out_path, file.strip('.npz') + '_chong.npy')
+    save_path = os.path.join(out_path, file.strip('.npz') + '_chongv2.npy')
     if os.path.exists(save_path):
         print(f'Solution for {file} exists, skipping')
         return
@@ -218,11 +270,32 @@ def sequence_solver(file, N=10, path='random_circuits', out_path='random_circuit
     np.save(save_path, Ps)
     print(f'Solution written to {save_path}')
 
+def naive_sequence_solver(file, N=10, path='random_circuits', out_path='random_circuits'):
+    if '.npz' in file:
+        Gs = sparse.load_npz(os.path.join(path, file))
+    else:
+        return
+    save_path = os.path.join(out_path, file.strip('.npz') + '_naive.npy')
+    if os.path.exists(save_path):
+        print(f'Solution for {file} exists, skipping')
+        return
+    print(f'Solving for {file}')
+    n_nodes = Gs.shape[1]
+    n_per_part = int(n_nodes / N)
+    # Init Partitions
+    Ps = np.zeros((Gs.shape[0], Gs.shape[1]), dtype=int)
+    for i, G in enumerate(Gs):
+        Ps[i] = naive_solver(G, N)
+
+    np.save(save_path, Ps)
+    print(f'Solution written to {save_path}')
+
+
 
 if __name__ == '__main__':
     path = 'random_circuits_remove_empty'
     N = 10
-    out_path = 'random_circuits_remove_empty'
+    out_path = 'random_circuits'
     for file in os.listdir(path):
         sequence_solver(file,path=path,out_path=out_path)
 
