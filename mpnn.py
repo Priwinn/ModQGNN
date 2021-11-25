@@ -81,29 +81,29 @@ class MPNN(tf.keras.Model):
             for j in range(self.t_int):
                 node_gather = tf.gather(node_states, node_indices, name='node_gather')
                 neighbour_gather = tf.gather(node_states, neighbour_indices, name='neighbour_gather')
-                node_gather = tf.squeeze(node_gather, name='squeeze_node_gather')
-                neighbour_gather = tf.squeeze(neighbour_gather, name='squeeze_neighbour_gather')
-                neighbour_gather = tf.ensure_shape(neighbour_gather,
-                                                   [None, self.node_state_dim])
+                # node_gather = tf.squeeze(node_gather, name='squeeze_node_gather')
+                # neighbour_gather = tf.squeeze(neighbour_gather, name='squeeze_neighbour_gather')
+                # neighbour_gather = tf.ensure_shape(neighbour_gather,
+                #                                    [None, self.node_state_dim])
                 if self.loader == 'lookahead_chong':
                     int_msg_input0 = tf.concat([node_gather, neighbour_gather, lookahead_weights], axis=1)
                     int_msg_input1 = tf.concat([neighbour_gather, node_gather, lookahead_weights], axis=1)
                     int_msg_input = tf.concat([int_msg_input0, int_msg_input1], axis=0)
-                    int_msg_input = tf.ensure_shape(int_msg_input,
-                                                    [None,
-                                                     self.node_state_dim * 2 + 1])
+                    # int_msg_input = tf.ensure_shape(int_msg_input,
+                    #                                 [None,
+                    #                                  self.node_state_dim * 2 + 1])
                 else:
                     int_msg_input0 = tf.concat([node_gather, neighbour_gather], axis=1)
                     int_msg_input1 = tf.concat([neighbour_gather, node_gather], axis=1)
                     int_msg_input = tf.concat([int_msg_input0, int_msg_input1], axis=0)
-                    int_msg_input = tf.ensure_shape(int_msg_input,
-                                                    [None, self.node_state_dim * 2])
+                    # int_msg_input = tf.ensure_shape(int_msg_input,
+                    #                                 [None, self.node_state_dim * 2])
                 int_message = self.message_func(int_msg_input)
                 # Interaction Aggregation
                 int_mean = tf.math.unsorted_segment_mean(int_message,
                                                          tf.concat([neighbour_indices, node_indices], axis=0),
                                                          tf.shape(node_states)[0])
-                int_mean = tf.ensure_shape(int_mean, [None, self.node_state_dim])
+                # int_mean = tf.ensure_shape(int_mean, [None, self.node_state_dim])
                 # Update
                 node_states, _ = self.int_update(int_mean, [node_states])
             # Temporal messages
@@ -112,23 +112,23 @@ class MPNN(tf.keras.Model):
                     temp_node_gather = tf.gather(node_states, temp_node_indices, name='temp_node_gather')
                     temp_neighbour_gather = tf.gather(node_states, temp_neighbour_indices, name='temp_neighbour_gather')
                     temp_node_gather = tf.squeeze(temp_node_gather, name='temp_squeeze_node_gather')
-                    temp_neighbour_gather = tf.squeeze(temp_neighbour_gather, name='temp_squeeze_neighbour_gather')
-                    temp_neighbour_gather = tf.ensure_shape(temp_neighbour_gather,
-                                                            [None,
-                                                             self.node_state_dim])
+                    # temp_neighbour_gather = tf.squeeze(temp_neighbour_gather, name='temp_squeeze_neighbour_gather')
+                    # temp_neighbour_gather = tf.ensure_shape(temp_neighbour_gather,
+                    #                                         [None,
+                    #                                          self.node_state_dim])
                     temp_msg_input0 = tf.concat([temp_node_gather, temp_neighbour_gather], axis=1)
                     temp_msg_input1 = tf.concat([temp_neighbour_gather, temp_node_gather], axis=1)
                     temp_msg_input = tf.concat([temp_msg_input0, temp_msg_input1], axis=0)
-                    temp_msg_input = tf.ensure_shape(temp_msg_input,
-                                                     [None, self.node_state_dim * 2])
+                    # temp_msg_input = tf.ensure_shape(temp_msg_input,
+                    #                                  [None, self.node_state_dim * 2])
                     temp_message = self.message_func(temp_msg_input)
                     # Temporal aggregation
                     temp_mean = tf.math.unsorted_segment_mean(temp_message,
                                                               tf.concat([temp_neighbour_indices, temp_node_indices],
                                                                         axis=0),
                                                               tf.shape(node_states)[0])
-                    temp_mean = tf.ensure_shape(temp_mean,
-                                                [None, self.node_state_dim])
+                    # temp_mean = tf.ensure_shape(temp_mean,
+                    #                             [None, self.node_state_dim])
 
                     node_states, _ = self.temp_update(temp_mean, [node_states])
 

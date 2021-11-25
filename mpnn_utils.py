@@ -141,11 +141,19 @@ def evaluate_sequences(model, config, path,file_range=(600,800),target_suffix='_
             total_time_model_aux=[]
             print(f'File {n}/{len(files)}')
             Gs, chong = read(os.path.join(path, file.strip('.npz')))
-            L=lookahead(Gs)
+            L=lookahead(Gs,inf=1)
             node_input, edges, _ = make_windows(os.path.join(path, file.strip('.npz')), config['window_size'], 1)
+            if config['loader']=='lookahead_chong':
+                edges = np.concatenate([np.expand_dims(L.data, axis=0), L.coords], axis=0).T
+                edges = edges[np.where(edges[:, 1] < edges[:, 2])[0]]
+                edges = edges.astype(np.single)
+                start_gnn=time.time()
+                print(np.expand_dims(edges, axis=0).shape)
+                logits = model((np.expand_dims(node_input[0], axis=0), tf.ragged.constant(np.expand_dims(edges, axis=0))))
+            else:
+                start_gnn=time.time()
+                logits = model((np.expand_dims(node_input[0], axis=0), tf.ragged.constant(np.expand_dims(edges[0], axis=0))))
             gnn_parts=np.empty([node_input.shape[0],config['n_nodes']],dtype=int)
-            start_gnn=time.time()
-            logits = model((np.expand_dims(node_input[0], axis=0), tf.ragged.constant(np.expand_dims(edges[0], axis=0))))
             assignments = tf.squeeze(tf.cast(lsa(logits, n_per_part=config['n_per_part']),tf.int32)).numpy()
             start_gnn_roee=time.time()
             assignments,it = roee_vect(L, Gs[0], config['n_parts'], assignments,return_n_it=True)
@@ -164,11 +172,19 @@ def evaluate_sequences(model, config, path,file_range=(600,800),target_suffix='_
             it_chong_aux.append(it)
         for i in range(1,node_input.shape[0]):
             if not os.path.exists(save_path_model):
-                L=lookahead(Gs[i:])
-                start_gnn=time.time()
-                logits = model((np.expand_dims(gnn_parts[i-1], axis=0), tf.ragged.constant(np.expand_dims(edges[i], axis=0))))
+                L=lookahead(Gs[i:],inf=1)
+                if config['loader']=='lookahead_chong':
+                    edges = np.concatenate([np.expand_dims(L.data, axis=0), L.coords], axis=0).T
+                    edges = edges[np.where(edges[:, 1] < edges[:, 2])[0]]
+                    edges = edges.astype(np.single)
+                    start_gnn=time.time()
+                    logits = model((np.expand_dims(gnn_parts[i-1], axis=0), tf.ragged.constant(np.expand_dims(edges, axis=0))))
+                else:
+                    start_gnn=time.time()
+                    logits = model((np.expand_dims(gnn_parts[i-1], axis=0), tf.ragged.constant(np.expand_dims(edges[i], axis=0))))
                 assignments = tf.squeeze(tf.cast(lsa(logits, n_per_part=config['n_per_part']),tf.int32)).numpy()
                 start_gnn_roee=time.time()
+
                 assignments,it = roee_vect(L, Gs[i], config['n_parts'], assignments,return_n_it=True)
                 end_gnn_roee=time.time()
                 time_model_aux.append(end_gnn_roee-start_gnn_roee)

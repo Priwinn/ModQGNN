@@ -173,8 +173,9 @@ def roee_vect(A, G, N, part=None,return_n_it=False):
     while g_max > 0:
         it+=1
         validated=False
-        if validate_partition(G, part) == 0:
-            break
+        ##Wrong relaxed condition (I believe)
+        # if validate_partition(G, part) == 0:
+        #     break
         # Step 1
         C = np.arange(n_nodes)
         index = 0
@@ -218,10 +219,10 @@ def roee_vect(A, G, N, part=None,return_n_it=False):
         g_max = g_max[m]
         for i in g[:m + 1]:
             part[i[1]], part[i[2]] = part[i[2]], part[i[1]]
-        #     #Corrected relaxed condition
-        #     if validate_partition(G, part) == 0:
-        #         validated=True
-        #         break
+            #Corrected relaxed condition
+            if validate_partition(G, part) == 0:
+                validated=True
+                break
         if validated:
             break
     if validate_partition(G, part) != 0:

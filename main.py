@@ -33,7 +33,7 @@ if __name__ == '__main__':
         'loader': 'lookahead_chong',
         'use_metrics': False,
         'initial_lr': 0.0017,
-        'decay_steps': 2000,
+        'decay_steps': 1000,
         'decay_rate': 0.99
     }
     # Dataset from files
