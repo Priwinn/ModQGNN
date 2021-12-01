@@ -53,12 +53,13 @@ if __name__ == '__main__':
 
     # Dataset from TFRecords
     train_ds, val_ds, _ = data.TFRecord_write_load('random_circuits_remove_empty',
-                                                   'data_lookaheadv2',
+                                                   'data_lookahead_relax2',
                                                    config['window_size'],
                                                    config['stride'],
                                                    batch_size=config['batch_size'],
                                                    shuffle=config['shuffle'],
-                                                   loader=config['loader'])
+                                                   loader=config['loader'],
+                                                   target_suffix='_chong_relax2.py')
 
     mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy()
     # mirrored_strategy = tf.distribute.MirroredStrategy()

@@ -119,7 +119,7 @@ def evaluate_sequences(model, config, path,file_range=(600,800),target_suffix='_
     files = [file for file in os.listdir(path) if '.npz' in file][file_range[0]:file_range[1]]
 
 
-    save_path_target=os.path.join(path,f'cost{target_suffix}')
+    save_path_target=os.path.join(path,f'cost_relax{relax}{target_suffix}')
     save_path_model=os.path.join(path,model.name+f'relax_{relax}_cost.npy')
     if os.path.exists(save_path_target):
         result_chong=np.load(save_path_target)
@@ -148,7 +148,6 @@ def evaluate_sequences(model, config, path,file_range=(600,800),target_suffix='_
                 edges = edges[np.where(edges[:, 1] < edges[:, 2])[0]]
                 edges = edges.astype(np.single)
                 start_gnn=time.time()
-                print(np.expand_dims(edges, axis=0).shape)
                 logits = model((np.expand_dims(node_input[0], axis=0), tf.ragged.constant(np.expand_dims(edges, axis=0))))
             else:
                 start_gnn=time.time()
@@ -156,7 +155,7 @@ def evaluate_sequences(model, config, path,file_range=(600,800),target_suffix='_
             gnn_parts=np.empty([node_input.shape[0],config['n_nodes']],dtype=int)
             assignments = tf.squeeze(tf.cast(lsa(logits, n_per_part=config['n_per_part']),tf.int32)).numpy()
             start_gnn_roee=time.time()
-            assignments,it = roee_vect(L, Gs[0], config['n_parts'], assignments,return_n_it=True)
+            assignments,it = roee_vect(L, Gs[0], config['n_parts'], assignments,return_n_it=True,relax=relax)
             end_gnn_roee=time.time()
             time_model_aux.append(end_gnn_roee-start_gnn_roee)
             total_time_model_aux.append(end_gnn_roee-start_gnn)
@@ -167,7 +166,7 @@ def evaluate_sequences(model, config, path,file_range=(600,800),target_suffix='_
             it_chong_aux=[]
             L=lookahead(Gs)
             start_roee=time.time()
-            fgp,it = roee_vect(L, Gs[0], config['n_parts'], node_input[0],return_n_it=True)
+            fgp,it = roee_vect(L, Gs[0], config['n_parts'], node_input[0],return_n_it=True,relax=relax)
             time_chong_aux.append(time.time()-start_roee)
             it_chong_aux.append(it)
         for i in range(1,node_input.shape[0]):
@@ -184,8 +183,7 @@ def evaluate_sequences(model, config, path,file_range=(600,800),target_suffix='_
                     logits = model((np.expand_dims(gnn_parts[i-1], axis=0), tf.ragged.constant(np.expand_dims(edges[i], axis=0))))
                 assignments = tf.squeeze(tf.cast(lsa(logits, n_per_part=config['n_per_part']),tf.int32)).numpy()
                 start_gnn_roee=time.time()
-
-                assignments,it = roee_vect(L, Gs[i], config['n_parts'], assignments,return_n_it=True)
+                assignments,it = roee_vect(L, Gs[i], config['n_parts'], assignments,return_n_it=True,relax=relax)
                 end_gnn_roee=time.time()
                 time_model_aux.append(end_gnn_roee-start_gnn_roee)
                 total_time_model_aux.append(end_gnn_roee-start_gnn)
@@ -194,7 +192,7 @@ def evaluate_sequences(model, config, path,file_range=(600,800),target_suffix='_
             if not os.path.exists(save_path_target):
                 L=lookahead(Gs[i:])
                 start_roee=time.time()
-                fgp,it=roee_vect(L, Gs[i], config['n_parts'], fgp,return_n_it=True)
+                fgp,it=roee_vect(L, Gs[i], config['n_parts'], fgp,return_n_it=True,relax=relax)
                 time_chong_aux.append(time.time()-start_roee)
                 it_chong_aux.append(it)
         if not os.path.exists(save_path_model):
@@ -334,3 +332,8 @@ def graph_batch(inputs, loader='window_chong', temp_mode='center', n_nodes=100, 
     else:
         return node_input, node_indices, neighbour_indices, \
                None, None
+
+if __name__=='__main__':
+    name='/home/ruizhe/Code/models/11-28-2021_170231'
+    model,config=load(name)
+    evaluate_sequences(model,config,'random_circuits_remove_empty',target_suffix='_chong_relax2.npy',relax=2)

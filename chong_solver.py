@@ -152,7 +152,7 @@ def roee(A, G, N, part=None):
     return part
 
 
-def roee_vect(A, G, N, part=None,return_n_it=False):
+def roee_vect(A, G, N, part=None,return_n_it=False,relax=0):
     '''
     :param A: Weight matrix
     :param G: Interaction graph
@@ -171,11 +171,11 @@ def roee_vect(A, G, N, part=None,return_n_it=False):
     it=0
     # Step 7
     while g_max > 0:
-        it+=1
         validated=False
-        ##Wrong relaxed condition (I believe)
-        # if validate_partition(G, part) == 0:
-        #     break
+        if relax==0 or relax==2:
+            if validate_partition(G, part) == 0:
+                break
+        it+=1
         # Step 1
         C = np.arange(n_nodes)
         index = 0
@@ -220,9 +220,10 @@ def roee_vect(A, G, N, part=None,return_n_it=False):
         for i in g[:m + 1]:
             part[i[1]], part[i[2]] = part[i[2]], part[i[1]]
             #Corrected relaxed condition
-            if validate_partition(G, part) == 0:
-                validated=True
-                break
+            if relax==1 or relax==2:
+                if validate_partition(G, part) == 0:
+                    validated=True
+                    break
         if validated:
             break
     if validate_partition(G, part) != 0:
@@ -246,12 +247,12 @@ def lookahead(Gs, func='exp', sigma=1, inf=2 ** 16):
     return np.sum(L,axis=0)+W
 
 
-def sequence_solver(file, N=10, path='random_circuits', out_path='random_circuits'):
+def sequence_solver(file, N=10, path='random_circuits', out_path='random_circuits',relax=0):
     if '.npz' in file:
         Gs = sparse.load_npz(os.path.join(path, file))
     else:
         return
-    save_path = os.path.join(out_path, file.strip('.npz') + '_chongv2.npy')
+    save_path = os.path.join(out_path, file.strip('.npz') + f'_chong_relax{relax}.npy')
     if os.path.exists(save_path):
         print(f'Solution for {file} exists, skipping')
         return
@@ -296,7 +297,7 @@ def naive_sequence_solver(file, N=10, path='random_circuits', out_path='random_c
 if __name__ == '__main__':
     path = 'random_circuits_remove_empty'
     N = 10
-    out_path = 'random_circuits'
+    out_path = 'random_circuits_remove_empty'
     for file in os.listdir(path):
-        sequence_solver(file,path=path,out_path=out_path)
+        sequence_solver(file,path=path,out_path=out_path,relax=2)
 
