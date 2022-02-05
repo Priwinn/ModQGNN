@@ -163,7 +163,7 @@ def save_random_circ_list(save_dir, circ_list, qubits):
     qubits = str(qubits)
 
 
-    file_pattern = "q"+qubits
+    file_pattern = "qft_q"+qubits
 
     number = file_counter.get((qubits), 0)
 

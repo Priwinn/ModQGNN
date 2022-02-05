@@ -93,32 +93,34 @@ def TFRecord_writer(in_path, out_path, size=4, stride=1, file_range=(0, 1000), l
 
 
 def TFRecord_write_load(in_path, out_path, size, stride, splits=(6, 2, 2), batch_size=64, shuffle=4096,
-                        loader='window_chong', target_suffix='_chongv2.npy'):
+                        loader='window_chong', target_suffix='_chongv2.npy',inf=1):
+    splits_total=np.sum(splits)
+    n_files = len([file for file in os.listdir(in_path) if '.npz' in file])
     for i in range(splits[0]):
-        start = int(i * 600 / splits[0])
-        end = int((i + 1) * 600 / splits[0])
+        start = int(i * n_files/splits_total)
+        end = int((i + 1) * n_files/splits_total)
         save_path = os.path.join(out_path, f'train_{size}_{stride}_{start}-{end}.tfrecord')
         if not os.path.exists(save_path):
             if loader == 'lookahead_chong':
-                write_lookaheads(in_path, save_path, stride=stride, file_range=(start, end))
+                write_lookaheads(in_path, save_path, stride=stride, file_range=(start, end),inf=inf,target_suffix=target_suffix)
             else:
                 TFRecord_writer(in_path, save_path, size, stride, (start, end),target_suffix=target_suffix)
     for i in range(splits[1]):
-        start = 600 + int(i * 200 / splits[1])
-        end = 600 + int((i + 1) * 200 / splits[1])
+        start = int(splits[0]*n_files/splits_total + i * n_files/splits_total)
+        end = int(splits[0]*n_files/splits_total + (i + 1) * n_files/splits_total)
         save_path = os.path.join(out_path, f'val_{size}_{stride}_{start}-{end}.tfrecord')
         if not os.path.exists(save_path):
             if loader == 'lookahead_chong':
-                write_lookaheads(in_path, save_path, stride=stride, file_range=(start, end))
+                write_lookaheads(in_path, save_path, stride=stride, file_range=(start, end),inf=inf,target_suffix=target_suffix)
             else:
                 TFRecord_writer(in_path, save_path, size, stride, (start, end),target_suffix=target_suffix)
     for i in range(splits[2]):
-        start = 800 + int(i * 200 / splits[2])
-        end = 800 + int((i + 1) * 200 / splits[2])
+        start = int((splits[0]+splits[1])*n_files/splits_total + i * n_files/splits_total)
+        end = int((splits[0]+splits[1])*n_files/splits_total + (i + 1) * n_files/splits_total)
         save_path = os.path.join(out_path, f'test_{size}_{stride}_{start}-{end}.tfrecord')
         if not os.path.exists(save_path):
             if loader == 'lookahead_chong':
-                write_lookaheads(in_path, save_path, stride=stride, file_range=(start, end))
+                write_lookaheads(in_path, save_path, stride=stride, file_range=(start, end),inf=inf,target_suffix=target_suffix)
             else:
                 TFRecord_writer(in_path, save_path, size, stride, (start, end),target_suffix=target_suffix)
     return TFRecord_ds(out_path, size, stride, batch_size=batch_size, shuffle=shuffle, loader=loader)
@@ -160,12 +162,12 @@ def TFRecord_ds(path, size, stride, batch_size=64, shuffle=1024, loader='window_
            process_TFRecord(test_ds, batch_size, shuffle)
 
 
-def write_lookaheads(in_path, out_path, stride=1, inf=1, normalize=True, file_range=(0, 1000)):
+def write_lookaheads(in_path, out_path, stride=1, inf=1, normalize=True, file_range=(0, 1000),target_suffix='chongv2.npy'):
     files = [file for file in os.listdir(in_path) if '.npz' in file]
     with tf.io.TFRecordWriter(out_path) as file_writer:
         for file in files[file_range[0]:file_range[1]]:
             print(file)
-            Gs, chong = read(os.path.join(in_path, file.strip('.npz')))
+            Gs, chong = read(os.path.join(in_path, file.strip('.npz')),target_suffix=target_suffix)
             node_inputs = chong[:-1:stride]
             target = chong[1::stride]
             for i in range(Gs.shape[0]):

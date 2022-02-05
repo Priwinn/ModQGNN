@@ -18,19 +18,19 @@ if __name__ == '__main__':
         't_temp': 1,
         'batch_size': 64,
         'shuffle': 4096,
-        'temp_mode': None,
+        'temp_mode': 'center',
         'message_hidden': [64, 64, 64, 64],
         'message_activation': 'gelu',
         'message_dropout': [0, 0, 0, 0],
         'readout_hidden': [64, 64, 64, 64],
         'readout_activation': 'gelu',
         'readout_dropout': [0, 0, 0, 0],
-        'window_size': 1,
+        'window_size': 16,
         'stride': 1,
         'n_nodes': 100,
         'n_parts': 10,
         'n_per_part':10,
-        'loader': 'lookahead_chong',
+        'loader': 'window_chong',
         'use_metrics': False,
         'initial_lr': 0.0017,
         'decay_steps': 1000,
@@ -53,13 +53,13 @@ if __name__ == '__main__':
 
     # Dataset from TFRecords
     train_ds, val_ds, _ = data.TFRecord_write_load('random_circuits_remove_empty',
-                                                   'data_lookahead_relax2',
+                                                   'data_window',
                                                    config['window_size'],
                                                    config['stride'],
                                                    batch_size=config['batch_size'],
                                                    shuffle=config['shuffle'],
                                                    loader=config['loader'],
-                                                   target_suffix='_chong_relax2.py')
+                                                   target_suffix='_chong_relax2.npy',inf=1)
 
     mirrored_strategy = tf.distribute.MultiWorkerMirroredStrategy()
     # mirrored_strategy = tf.distribute.MirroredStrategy()

@@ -10,15 +10,13 @@ def find_qbits(line):
     return qbits
 
 
-def parse(path, self_loops=False, skip_repeat=False, empty_slices=False):
+def parse(path, self_loops=False, skip_repeat=False, empty_slices=False,n_qbits=100):
     slices = []
     with open(path) as f:
         cycle = 0
         while True:
             line = f.readline()
             if line[0] == '.':
-                line = line.split('_')
-                n_qbits = int(line[1][1:])
                 break
         while line:
             line = f.readline().strip(' ')
@@ -72,4 +70,4 @@ def parse(path, self_loops=False, skip_repeat=False, empty_slices=False):
 
 
 if __name__ == '__main__':
-    parse('random_circuits/compiler_output/random_q64_s2936_2qbf082_1_last.qasm')
+    a=parse('compiler_output/program_last.qasm')

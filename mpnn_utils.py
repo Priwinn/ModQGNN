@@ -71,10 +71,14 @@ def cost_step(p1, p2):
     return cost
 
 
-def load(load_path):
+def load(load_path,cpu=False):
     with open(os.path.join(load_path, 'config.json')) as file:
         config = json.load(file)
-    model = tf.keras.models.load_model(load_path, compile=False)
+    if cpu:
+        with tf.device('/cpu:0'):
+            model = tf.keras.models.load_model(load_path, compile=False)
+    else:
+        model = tf.keras.models.load_model(load_path, compile=False)
     decayed_lr = tf.keras.optimizers.schedules.ExponentialDecay(config['initial_lr'],
                                                                 config['decay_steps'],
                                                                 config['decay_rate'])
@@ -105,44 +109,60 @@ def validate_partition(G, P):
 
 
 def total_cost(partitions, Gs=None):
-    C = 0
+    C = []
     for i, p in enumerate(partitions):
         if Gs:
             C += validate_partition(Gs[i], p)
         if i == 0:
             continue
-        C += cost_step(partitions[i - 1], p)
+        C.append(cost_step(partitions[i - 1], p))
     return C
 
 
-def evaluate_sequences(model, config, path,file_range=(600,800),target_suffix='_chong.npy',relax=0):
-    files = [file for file in os.listdir(path) if '.npz' in file][file_range[0]:file_range[1]]
-
-
-    save_path_target=os.path.join(path,f'cost_relax{relax}{target_suffix}')
-    save_path_model=os.path.join(path,model.name+f'relax_{relax}_cost.npy')
-    if os.path.exists(save_path_target):
-        result_chong=np.load(save_path_target)
+def evaluate_sequences(model, config, path,file_range=(600,800),target_suffix='_chong.npy',relax=0,rollback=False,inf=1,cpu=False):
+    files = [file for file in os.listdir(path) if '.npz' in file]
+    def sort_key(file):
+        if 'random' in file:
+            return int(file.split('_')[-1].strip('.npz'))
+        else:
+            return int(file.split('_')[1].strip('.npz').strip('q'))
+    files.sort(key=sort_key)
+    files=files[file_range[0]:file_range[1]]
+    save_path_chong=os.path.join(path,f'cost{target_suffix}')
+    if cpu:
+        cpu_suffix='_cpu'
+    else:
+        cpu_suffix=''
+    result_suffix=model.name+f'rollback_{rollback}_relax_{relax}_cost{cpu_suffix}.npy'
+    save_path_model=os.path.join(path,result_suffix)
+    if os.path.exists(save_path_chong) and os.path.exists(save_path_model):
+        result_chong=np.load(save_path_chong,allow_pickle=True)
+        result_gnn=np.load(save_path_model,allow_pickle=True)
+        print(f'Using saved result file {save_path_model}')
+        print(f'Using saved result file {save_path_chong}')
+        return result_chong,result_gnn
     else:
         cost_chong=[]
         time_chong=[]
         it_chong=[]
-    if os.path.exists(save_path_model):
-        result_gnn=np.load(save_path_model)
-    else:
         cost_model=[]
         time_model=[]
         it_model=[]
         total_time_model=[]
+
     for n,file in enumerate(files):
-        if not os.path.exists(save_path_model):
-            time_model_aux=[]
-            it_model_aux=[]
-            total_time_model_aux=[]
-            print(f'File {n}/{len(files)}')
-            Gs, chong = read(os.path.join(path, file.strip('.npz')))
-            L=lookahead(Gs,inf=1)
-            node_input, edges, _ = make_windows(os.path.join(path, file.strip('.npz')), config['window_size'], 1)
+        save_path_model_prediction=os.path.join(path,file.strip('.npz')+result_suffix)
+        print(f'File {n}/{len(files)}')
+        Gs, chong = read(os.path.join(path, file.strip('.npz')),target_suffix=target_suffix)
+        L=lookahead(Gs,inf=inf)
+        node_input, edges, _ = make_windows(os.path.join(path, file.strip('.npz')), config['window_size'], 1,target_suffix=target_suffix)
+        time_model_aux=[]
+        it_model_aux=[]
+        total_time_model_aux=[]
+        #Init gnn predictions
+        gnn_parts=np.empty([node_input.shape[0],config['n_nodes']],dtype=int)
+        if validate_partition(Gs[0],node_input[0]):
+            #Process data for GNN
             if config['loader']=='lookahead_chong':
                 edges = np.concatenate([np.expand_dims(L.data, axis=0), L.coords], axis=0).T
                 edges = edges[np.where(edges[:, 1] < edges[:, 2])[0]]
@@ -152,26 +172,34 @@ def evaluate_sequences(model, config, path,file_range=(600,800),target_suffix='_
             else:
                 start_gnn=time.time()
                 logits = model((np.expand_dims(node_input[0], axis=0), tf.ragged.constant(np.expand_dims(edges[0], axis=0))))
-            gnn_parts=np.empty([node_input.shape[0],config['n_nodes']],dtype=int)
+
+            #Apply lsa to predictions
             assignments = tf.squeeze(tf.cast(lsa(logits, n_per_part=config['n_per_part']),tf.int32)).numpy()
-            start_gnn_roee=time.time()
+        else:
+            start_gnn=time.time()
+            assignments=node_input[0]
+
+        start_gnn_roee=time.time()
+        if rollback and validate_partition(Gs[0],assignments)!=0:
+            assignments,it = roee_vect(L, Gs[0], config['n_parts'], node_input[0],return_n_it=True,relax=relax)
+        else:
             assignments,it = roee_vect(L, Gs[0], config['n_parts'], assignments,return_n_it=True,relax=relax)
-            end_gnn_roee=time.time()
-            time_model_aux.append(end_gnn_roee-start_gnn_roee)
-            total_time_model_aux.append(end_gnn_roee-start_gnn)
-            it_model_aux.append(it)
-            gnn_parts[0] = assignments.copy()
-        if not os.path.exists(save_path_target):
-            time_chong_aux=[]
-            it_chong_aux=[]
-            L=lookahead(Gs)
-            start_roee=time.time()
-            fgp,it = roee_vect(L, Gs[0], config['n_parts'], node_input[0],return_n_it=True,relax=relax)
-            time_chong_aux.append(time.time()-start_roee)
-            it_chong_aux.append(it)
-        for i in range(1,node_input.shape[0]):
-            if not os.path.exists(save_path_model):
-                L=lookahead(Gs[i:],inf=1)
+        end_gnn_roee=time.time()
+        time_model_aux.append(end_gnn_roee-start_gnn_roee)
+        total_time_model_aux.append(end_gnn_roee-start_gnn)
+        it_model_aux.append(it)
+        gnn_parts[0] = assignments.copy()
+        #Chong measurements
+        # time_chong_aux=[]
+        # it_chong_aux=[]
+        # L=lookahead(Gs)
+        # start_roee=time.time()
+        # fgp,it = roee_vect(L, Gs[0], config['n_parts'], node_input[0],return_n_it=True,relax=relax)
+        # time_chong_aux.append(time.time()-start_roee)
+        # it_chong_aux.append(it)
+        for i in range(1,Gs.shape[0]):
+            if validate_partition(Gs[i],gnn_parts[i-1]):
+                L=lookahead(Gs[i:],inf=inf)
                 if config['loader']=='lookahead_chong':
                     edges = np.concatenate([np.expand_dims(L.data, axis=0), L.coords], axis=0).T
                     edges = edges[np.where(edges[:, 1] < edges[:, 2])[0]]
@@ -182,35 +210,44 @@ def evaluate_sequences(model, config, path,file_range=(600,800),target_suffix='_
                     start_gnn=time.time()
                     logits = model((np.expand_dims(gnn_parts[i-1], axis=0), tf.ragged.constant(np.expand_dims(edges[i], axis=0))))
                 assignments = tf.squeeze(tf.cast(lsa(logits, n_per_part=config['n_per_part']),tf.int32)).numpy()
-                start_gnn_roee=time.time()
+            else:
+                start_gnn=time.time()
+                assignments=gnn_parts[i-1].copy()
+            start_gnn_roee=time.time()
+            if rollback and validate_partition(Gs[i],assignments)!=0:
+                assignments,it = roee_vect(L, Gs[i], config['n_parts'], gnn_parts[i-1],return_n_it=True,relax=relax)
+            else:
                 assignments,it = roee_vect(L, Gs[i], config['n_parts'], assignments,return_n_it=True,relax=relax)
-                end_gnn_roee=time.time()
-                time_model_aux.append(end_gnn_roee-start_gnn_roee)
-                total_time_model_aux.append(end_gnn_roee-start_gnn)
-                it_model_aux.append(it)
-                gnn_parts[i] = assignments.copy()
-            if not os.path.exists(save_path_target):
-                L=lookahead(Gs[i:])
-                start_roee=time.time()
-                fgp,it=roee_vect(L, Gs[i], config['n_parts'], fgp,return_n_it=True,relax=relax)
-                time_chong_aux.append(time.time()-start_roee)
-                it_chong_aux.append(it)
-        if not os.path.exists(save_path_model):
-            cost_model.append(total_cost(np.concatenate([np.expand_dims(node_input[0],axis=0),gnn_parts],axis=0)))
-            time_model.append(np.mean(time_model_aux))
-            it_model.append(np.mean(it_model_aux))
-            total_time_model.append(np.mean(total_time_model_aux))
-        if not os.path.exists(save_path_target):
-            cost_chong.append(total_cost(chong))
-            time_chong.append(np.mean(time_chong_aux))
-            it_chong.append(np.mean(it_chong_aux))
-    if not os.path.exists(save_path_model):
-        result_gnn=np.array([cost_model,it_model,time_model,total_time_model])
-        np.save(save_path_model,result_gnn)
-    if not os.path.exists(save_path_target):
-        result_chong=np.array([cost_chong,it_chong,time_chong])
-        np.save(save_path_target,result_chong)
-    return result_chong,result_gnn
+            end_gnn_roee=time.time()
+            time_model_aux.append(end_gnn_roee-start_gnn_roee)
+            total_time_model_aux.append(end_gnn_roee-start_gnn)
+            it_model_aux.append(it)
+            gnn_parts[i] = assignments.copy()
+        #
+        #     #Chong
+        #     L=lookahead(Gs[i:])
+        #     start_roee=time.time()
+        #     fgp,it=roee_vect(L, Gs[i], config['n_parts'], fgp,return_n_it=True,relax=relax)
+        #     time_chong_aux.append(time.time()-start_roee)
+        #     it_chong_aux.append(it)
+        np.save(save_path_model_prediction,gnn_parts)
+        cost_model.append(np.array(total_cost(np.concatenate([np.expand_dims(node_input[0],axis=0),gnn_parts],axis=0))))
+        time_model.append(np.array(time_model_aux))
+        it_model.append(np.array(it_model_aux))
+        total_time_model.append(np.array(total_time_model_aux))
+
+        # cost_chong.append(np.array(total_cost(chong)))
+        # time_chong.append(np.array(time_chong_aux))
+        # it_chong.append(np.array(it_chong_aux))
+
+    result_gnn=np.stack([cost_model,it_model,time_model,total_time_model])
+    np.save(save_path_model,result_gnn)
+
+    # result_chong=np.stack([cost_chong,it_chong,time_chong])
+    # np.save(save_path_chong,result_chong)
+
+    # return result_chong,result_gnn
+    return result_gnn
 
 def message_ffn(hidden, activation, dropout, node_state_dim):
     model = tf.keras.Sequential([])
@@ -334,6 +371,10 @@ def graph_batch(inputs, loader='window_chong', temp_mode='center', n_nodes=100, 
                None, None
 
 if __name__=='__main__':
-    name='/home/ruizhe/Code/models/11-28-2021_170231'
-    model,config=load(name)
-    evaluate_sequences(model,config,'random_circuits_remove_empty',target_suffix='_chong_relax2.npy',relax=2)
+    name='/home/ruizhe/Code/models/01-15-2022_171402'
+    cpu=False
+    model,config=load(name,cpu)
+    evaluate_sequences(model,config,'real_circuits/grover_circuits',target_suffix='_chong_relax2.npy',relax=2,rollback=True,file_range=(0,800),inf=1,cpu=cpu)
+    evaluate_sequences(model,config,'real_circuits/grover_circuits',target_suffix='_chong_relax2.npy',relax=2,rollback=False,file_range=(0,800),inf=1,cpu=cpu)
+    evaluate_sequences(model,config,'real_circuits/qft_circuits',target_suffix='_chong_relax2.npy',relax=2,rollback=True,file_range=(0,800),inf=1,cpu=cpu)
+    evaluate_sequences(model,config,'real_circuits/qft_circuits',target_suffix='_chong_relax2.npy',relax=2,rollback=False,file_range=(0,800),inf=1,cpu=cpu)

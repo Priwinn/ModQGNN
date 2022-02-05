@@ -253,9 +253,9 @@ def sequence_solver(file, N=10, path='random_circuits', out_path='random_circuit
     else:
         return
     save_path = os.path.join(out_path, file.strip('.npz') + f'_chong_relax{relax}.npy')
-    if os.path.exists(save_path):
-        print(f'Solution for {file} exists, skipping')
-        return
+    # if os.path.exists(save_path):
+    #     print(f'Solution for {file} exists, skipping')
+    #     return
     print(f'Solving for {file}')
     n_nodes = Gs.shape[1]
     n_per_part = int(n_nodes / N)
@@ -267,7 +267,7 @@ def sequence_solver(file, N=10, path='random_circuits', out_path='random_circuit
     T = Gs.shape[0]
     for i, G in enumerate(Gs):
         L = lookahead(Gs[i:])
-        Ps[i + 1] = roee_vect(L, G, N, Ps[i].copy())
+        Ps[i + 1] = roee_vect(L, G, N, Ps[i].copy(),relax=relax)
 
     np.save(save_path, Ps)
     print(f'Solution written to {save_path}')
@@ -295,9 +295,9 @@ def naive_sequence_solver(file, N=10, path='random_circuits', out_path='random_c
 
 
 if __name__ == '__main__':
-    path = 'random_circuits_remove_empty'
+    path = 'random0204'
     N = 10
-    out_path = 'random_circuits_remove_empty'
+    out_path = 'random0204'
     for file in os.listdir(path):
         sequence_solver(file,path=path,out_path=out_path,relax=2)
 
